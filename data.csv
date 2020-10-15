@@ -1,0 +1,174 @@
+---
+title: 'Health Seeking Behavior'
+subtitle: 'Predicting Paterns of Curative & Preventive Health Seeking Behavior and Related Factors: A Case Study from Lebanon'
+author: "Cyrine Saab"
+date: "10/15/2020"
+output: 
+  pdf_document:
+    df_print: kable
+    toc: yes
+documentclass: report
+classoption: a4paper
+fig_height: 5
+fig_width: 5
+fontsize: 10pt
+highlight: zenburn
+latex_engine: xelatex
+mainfont: Arial
+mathfont: LiberationMono
+monofont: DejaVu Sans Mono
+urlcolor: blue
+---
+---
+
+
+
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+## specify the packages needed
+ if(!require(rpart)) install.packages('rpart', 
+repos = 'http://cran.us.r-project.org')
+## specify the packages needed
+ if(!require(gmodels)) install.packages('gmodels', 
+repos = 'http://cran.us.r-project.org')
+ if(!require(ROCR)) install.packages('ROCR', 
+repos = 'http://cran.us.r-project.org')
+if(!require(epiDisplay)) install.packages('epiDisplay', 
+repos = 'http://cran.us.r-project.org')
+if(!require(kableExtra)) install.packages('kableExtra', 
+repos = 'http://cran.us.r-project.org')
+if(!require(dataCompareR)) install.packages('dataCompareR', 
+repos = 'http://cran.us.r-project.org')
+if(!require(tidyverse)) install.packages('tidyverse', 
+repos = 'http://cran.us.r-project.org')
+if(!require(caret)) install.packages('caret', 
+repos = 'http://cran.us.r-project.org')
+if(!require(data.table)) install.packages('data.table', 
+repos = 'http://cran.us.r-project.org')
+## specify global chunk options
+knitr::opts_chunk$set(fig.width = 5, fig.height = 4, dpi = 300,
+                      out.width = '90%', fig.align = 'center',
+                      tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE,
+                      cache = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+## Dedication
+
+This project is dedicated for all the people in Lebanon who are victims of the mismanaged healthcare system in the country. I hope the findings of my study raises better awareness on how we can navigate keep healthy through our exhausted healthcare system.
+
+
+## Acknowledgement
+
+I would like to thank HarvardX for providing this amazing Data Science certification. Special thanks to Dr. Rafael Irizarry for the great explanation and engaging lectures. Goodluck to all of us :)
+
+## Introduction
+
+According to Stokes (1982), health is “a state characterized by anatomic integrity; ability to perform valued family, work, and community roles; ability to deal with physical, biological, and social stress; a feeling of well-being; freedom from the risk of disease and untimely death”. (p. 39). Therefore, health is one of the most important factors to sustain quality life on different levels including the psychological, physiological and career levels. 
+In order to maintain a good health status, one needs to prevent chronic life diseases rather than engaging in chronic treatments. For this purpose, it is important to diagnose these diseases as early as possible through screening and early treatment. However, engaging in this kind of preventive treatment is influenced by several factors. To control these factors and promote for preventive care, comprehensive efforts from the health providers, individuals and the government are required in order to adjust the health system to the current needs of the society.
+
+**Executive Summary**
+
+In this report, I will use use machine learning techniques such as logistic regression and decision trees for building a predictive model based on my own dataset. 
+
+The report is divided into five main sections. I first install the required packages and libraries, that are necessary to run my dataset and I provide an overview of it. Second, I generate basic codes to describe the variables and the data in the dataset. Third, based on the data description, I clean the data and present the linear regression models. In the final section, I conclude the main factors that influence HSB based on the RMSE values.
+
+I collected the data back in July-August 2020 and the subsequent model should help on understanding the patterns of healthseeking behavior. To collect my data, I utilised a random sampling design to draw a sample of 100 adults who come from different socioeconomic, educational backgrounds, medical coverage and genders. The data collection instrument includes questions about the socio-demographic information, education, employment and socioeconomic status, healthcare seeking behavior and adequacy of services.  
+
+
+```{r}
+
+library(readxl)
+HSB<- read_csv(file.choose())
+class(HSB)
+library (dplyr)
+glimpse(HSB)
+
+
+```
+
+For all project calculations is used the following PC:
+```{r pc}
+print('Operating System:')
+version
+```
+
+
+This dataset describes Health Seeking Behavior patterns in Lebanon and relates it to different factors from the literature. The data helps researchers to design a health policy program that changes the HSB in Lebanon from an acute behavior to a preventive one. These data were created by 100 participants in a random sampling approach. 
+
+
+1. Overview of the Raw Data
+
+I generate the two codes; class and glimpse to get an overview of the raw dataset HSB. The overview tells us that the HSB dataset is made of 33 variables (columns) for a total of 100 observations (rows). Each row represents a health seeking behavior given by one participant about themselves. 
+
+```{r}
+summary(HSB)
+```
+
+I need to check if there are any missing values in our data.
+
+
+```{r check-na-data}
+# Check HSB for NA values
+sapply(HSB, function(x) sum(is.na(x)))
+```
+The dataset does not have empty responses. The item "Who.Refers.You" for instance, is left empty if the answer of the previous question was "no". Similarly for the items "Why.Not", "Do.You.Seek.Healthcare", "Whom.do.you.Seek" and "Type.of.Treatment". the dataset was cleaned prior to carrying this analysis. 
+
++ Indices and Weights 
+
+I define two variables and construct four indices. I define the variable “chronic illness” which equals to 1 if the respondent has a chronic illness and equals zero otherwise. I also generate the variable “critical case” which equals 1 if the respondent has experienced a medical critical case that requires a medical intervention and zero otherwise. The four indices are health seeking behavior, ability to afford HSB, education and healthcare services outcome. These indices are constructed using a set of questions that were seen as indicators to certain health seeking, educational, socioeconomic and healthcare services outcomes in the survey. 
+The answers of the questions used to construct the indices include multiple responses, whereby, each individual response describes the individual’s health seeking, socioeconomic, educational, and healthcare services outcome according to the provided answer. Each response is individually evaluated and ranked from the most favorable to the least favorable outcome. The response that indicates the most favorable outcome receives the highest rank, similarly if the response is presumed to be the least favorable outcome it’s given the lowest rank accordingly. Finally, responses that demonstrate a similar state, outcome, or perception receive the same rank with respect to other responses.  The rank of each response is later used to calculate the indicator score for each individual.
+To construct the health seeking behavior index, we rely on the questions that determine the number of routine visits for lab tests (question 12), whether the participant has needed any lab tests in the past 6 months (question 13), and the frequency of these lab tests (question 14).  As for the socioeconomic index, we rely on the responses for five questions; the housing condition (question 4), the employment condition (question 8), health insurance condition (question 9), the type of insurance (question 10) and the type of billing in accordance to the type of insurance (question 11). The education index is constructed based on the responses for three indicators; the education level (question 7), the general health education (question 17) and the symptoms’ education (question 18). Lastly, the healthcare services outcome is constructed based on the responses for four indicators; whether the participant feels better after receiving healthcare (question 27), whether they deal better with their medical condition (question 28), the extent to which they are satisfied with the services (question 29) and whether they would take the same approach in other similar occasions (question 30).
+
++ Data Exploration / Description
+
+In this section, I perform basic codes to explore and describe the  features in the HSB dataset.
+To respond to the first research question, we will explore the following features: 
+**HSB**
+
+ + Screening (HSB index)
+ + Emergency Visit 
+ + Acute Illness (Critical Medical Case, Do you Seek Health Care) 
+ + Chronic Illness
+
+To respond to the second research question, I will explore the following features:
+
+**Personal Characteristics** 
+ + Gender
+ + Age
+ + Area of residence
+ + Community Support (Marital Status, Number of family members, Having    Friends / Family members in healthcare)
+ + Education index
+
+**Service** 
+ + Advice (who referred you)
+ + Access (where did you seek healthcare)
+ + Visit Outcome
+ + Ability to Afford HSB (Affordance index)
+ + HSB outcome (Outcome index)
+ + Factors not Screening (Why not?)
+
+I will look at the final items to confirm the findings of the factors that hinder a preventive HSB. This can be summarized by these features
+
+** Summary**
+
+ + Challenges
+ + Opportunities 
+ + Impact of Challenges 
+ 
+ **1. What are the common health seeking behavior patterns in Lebanon?** 
+
+
+```{r}
+sc_tab<- table(HSB$HSB)
+barplot(sc_tab[order(sc_tab)], 
+        border = NA, main = "Screening Index",col = rainbow(5), ylab = "no. of participants", ylim = c(0,35), xlab = "screening health seeking behavior")
+
+
+```
+
+```{r}
+mean(HSB$HSB)
+```
